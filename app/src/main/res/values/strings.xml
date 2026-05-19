@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Push Notifications</string>
+    <string name="service_running">Listening on port 3212…</string>
+</resources>
