@@ -8,6 +8,8 @@ import android.content.Intent
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import fi.iki.elonen.NanoHTTPD
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 class NotifyService : Service() {
 
@@ -71,14 +73,20 @@ class NotifyService : Service() {
 class NotifyServer(port: Int, private val onMessage: (String, String) -> Unit) : NanoHTTPD(port) {
     override fun serve(session: IHTTPSession): Response {
         if (session.method == Method.POST && session.uri == "/notify") {
-            val contentLength = session.headers["content-length"]?.toIntOrNull() ?: 0
-            val buffer = ByteArray(contentLength)
-            session.inputStream.read(buffer, 0, contentLength)
-            val body = String(buffer).trim()
-            if (body.isNotEmpty()) {
-                val newline = body.indexOf('\n')
-                val title = if (newline >= 0) body.substring(0, newline).trim() else body
-                val message = if (newline >= 0) body.substring(newline + 1).trim() else ""
+            val params = rawQuery
+                .split('&')
+                .mapNotNull { part ->
+                    val idx = part.indexOf('=')
+                    if (idx <= 0) return@mapNotNull null
+                    val key = URLDecoder.decode(part.substring(0, idx), StandardCharsets.UTF_8)
+                    val value = URLDecoder.decode(part.substring(idx + 1), StandardCharsets.UTF_8)
+                    key to value
+                }
+                .toMap()
+
+            val title = params["title"]?.trim().orEmpty()
+            val message = params["message"]?.trim().orEmpty()
+            if (title.isNotEmpty() || message.isNotEmpty()) {
                 onMessage(title, message)
             }
             return newFixedLengthResponse("ok\n")
