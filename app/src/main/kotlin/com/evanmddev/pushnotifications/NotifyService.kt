@@ -23,7 +23,7 @@ class NotifyService : Service() {
         super.onCreate()
         createChannels()
         startForeground(SERVICE_NOTIF_ID, buildServiceNotification())
-        server = NotifyServer(3212) { message -> showAlert(message) }
+        server = NotifyServer(3212) { title, message -> showAlert(title, message) }
         server?.start()
     }
 
@@ -55,10 +55,10 @@ class NotifyService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-    private fun showAlert(message: String) {
+    private fun showAlert(title: String, message: String) {
         val nm = getSystemService(NotificationManager::class.java)
         val notif = NotificationCompat.Builder(this, CHANNEL_ALERTS)
-            .setContentTitle("Notification")
+            .setContentTitle(title)
             .setContentText(message)
             .setSmallIcon(android.R.drawable.ic_dialog_email)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -68,14 +68,19 @@ class NotifyService : Service() {
     }
 }
 
-class NotifyServer(port: Int, private val onMessage: (String) -> Unit) : NanoHTTPD(port) {
+class NotifyServer(port: Int, private val onMessage: (String, String) -> Unit) : NanoHTTPD(port) {
     override fun serve(session: IHTTPSession): Response {
         if (session.method == Method.POST && session.uri == "/notify") {
             val contentLength = session.headers["content-length"]?.toIntOrNull() ?: 0
             val buffer = ByteArray(contentLength)
             session.inputStream.read(buffer, 0, contentLength)
-            val message = String(buffer).trim()
-            if (message.isNotEmpty()) onMessage(message)
+            val body = String(buffer).trim()
+            if (body.isNotEmpty()) {
+                val newline = body.indexOf('\n')
+                val title = if (newline >= 0) body.substring(0, newline).trim() else body
+                val message = if (newline >= 0) body.substring(newline + 1).trim() else ""
+                onMessage(title, message)
+            }
             return newFixedLengthResponse("ok\n")
         }
         return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "not found\n")
