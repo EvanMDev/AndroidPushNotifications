@@ -73,6 +73,7 @@ class NotifyService : Service() {
 class NotifyServer(port: Int, private val onMessage: (String, String) -> Unit) : NanoHTTPD(port) {
     override fun serve(session: IHTTPSession): Response {
         if (session.method == Method.POST && session.uri == "/notify") {
+            val rawQuery = session.queryParameterString.orEmpty()
             val params = rawQuery
                 .split('&')
                 .mapNotNull { part ->
